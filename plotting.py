@@ -13,7 +13,7 @@ import os
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 
-from config import ROBOTO, INSTRUMENT_SERIF, TEAM_COLORS, COLUMN_RENAME_MAP, LOGO_PATH
+from config import ROBOTO, INSTRUMENT_SERIF, TEAM_COLORS, COLUMN_RENAME_MAP, LOGO_PATH, COMBINE_STATS_PATH
 
 DRAFT_PICKS_PATH = "data/draft_picks.csv"
 
@@ -35,8 +35,18 @@ def get_draft_position(athlete_id, stats_df=None, player_name=None):
         pass
     if stats_df is not None:
         player_rows = stats_df[stats_df["athlete_id"] == athlete_id]
-        if not player_rows.empty and str(player_rows["year"].max()) == "2025":
+        if not player_rows.empty and int(player_rows["year"].max()) >= 2025:
             return "?"
+    # Check combine data for prospects with no stats (e.g. OL)
+    try:
+        combine_df = pd.read_csv(COMBINE_STATS_PATH)
+        combine_row = combine_df[combine_df["athlete_id"] == athlete_id]
+        if combine_row.empty and player_name:
+            combine_row = combine_df[combine_df["player"] == player_name]
+        if not combine_row.empty and int(combine_row["Year"].max()) >= 2025:
+            return "?"
+    except Exception:
+        pass
     return "Undrafted"
 
 TEAM_LOGO_MAP_PATH = "assets/team_logo_map.json"
@@ -103,18 +113,34 @@ class DraftComparisonPlotter:
         latest_teams = self.stats_df.loc[
             self.stats_df.groupby("athlete_id")["year"].idxmax(), ["athlete_id", "team"]
         ]
-        return latest_teams.set_index("athlete_id")["team"].to_dict()
+        teams_dict = latest_teams.set_index("athlete_id")["team"].to_dict()
+        # Combine data takes priority (reflects school at time of draft, handles transfers)
+        combine_df = pd.read_csv(COMBINE_STATS_PATH)
+        for i, aid in enumerate(self.proc.comparison_athlete_ids):
+            # Try by athlete_id first
+            row = combine_df[combine_df["athlete_id"] == aid]
+            if row.empty or pd.isna(row.iloc[0].get("College", None)):
+                # Fall back to name match
+                name = self.proc.comparison_players[i]
+                row = combine_df[combine_df["player"] == name]
+            if not row.empty and pd.notna(row.iloc[0].get("College")):
+                teams_dict[aid] = row.iloc[0]["College"]
+        return teams_dict
 
     def create_plot(self, save=False):
         fig = plt.figure(figsize=(28, 18))
         fig.patch.set_facecolor("#DDEBEC")
 
+        # Header images — same box, anchored to bottom so they align
+        img_bottom, img_height, img_width = 0.76, 0.15, 0.15
+
         player_image = self._fetch_headshot(self.input_player)
         if player_image:
-            player_img_ax = fig.add_axes([0.01, 0.76, 0.15, 0.15], frameon=False)
+            player_img_ax = fig.add_axes([0.01, img_bottom, img_width, img_height], frameon=False)
             player_img_ax.imshow(player_image)
             player_img_ax.set_xticks([])
             player_img_ax.set_yticks([])
+            player_img_ax.set_anchor("S")
 
         title_text = f"{self.input_player} ({self.proc.player_position}) NFL Draft Comparison"
         fig.text(
@@ -125,7 +151,7 @@ class DraftComparisonPlotter:
         fig.text(
             0.18, 0.78,
             "Ray Carpenter | TheSpade.substack.com | Stats: CFBD | Combine Data: Various Sources | Go Watch Film",
-            fontsize=24, ha="left", color="#474746", fontproperties=ROBOTO
+            fontsize=23, ha="left", color="#474746", fontproperties=ROBOTO
         )
 
         # Add team logo to top right
@@ -134,11 +160,12 @@ class DraftComparisonPlotter:
         player_team = latest_teams_dict.get(comparison_athlete_ids[0], "")
         team_logo_path = get_team_logo_path(player_team)
         if team_logo_path:
-            team_logo_ax = fig.add_axes([0.85, 0.76, 0.15, 0.15], frameon=False)
+            team_logo_ax = fig.add_axes([1.0 - 0.01 - img_width, img_bottom, img_width, img_height], frameon=False)
             team_logo_img = Image.open(team_logo_path)
             team_logo_ax.imshow(team_logo_img)
             team_logo_ax.set_xticks([])
             team_logo_ax.set_yticks([])
+            team_logo_ax.set_anchor("S")
 
         divider_ax = fig.add_axes([0, 0.75, 1, 0.005])
         divider_ax.set_facecolor("black")
@@ -329,11 +356,19 @@ class SinglePlayerPlotter:
         self.stats_df = original_stats_df
 
     def _get_player_team(self):
+        # Combine data takes priority (reflects school at time of draft, handles transfers)
+        combine_df = pd.read_csv(COMBINE_STATS_PATH)
+        combine_row = combine_df[combine_df['player'] == self.input_player]
+        if not combine_row.empty:
+            college = combine_row.iloc[0].get('College', None)
+            if pd.notna(college):
+                return college
+        # Fallback: stats data
         player_df = self.stats_df[self.stats_df['player'] == self.input_player]
-        if player_df.empty:
-            raise ValueError(f"No team data found for player {self.input_player}")
-        latest_year = player_df['year'].max()
-        return player_df[player_df['year'] == latest_year]['team'].iloc[0]
+        if not player_df.empty:
+            latest_year = player_df['year'].max()
+            return player_df[player_df['year'] == latest_year]['team'].iloc[0]
+        return None
 
     def create_plot(self, save=False):
         fig, axes = plt.subplots(len(self.proc.valid_metrics), 1, figsize=(12, len(self.proc.valid_metrics) * 1.2 + 2), sharex=True)
