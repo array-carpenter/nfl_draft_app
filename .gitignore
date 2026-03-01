@@ -1,0 +1,18 @@
+# OS
+.DS_Store
+
+# Python
+.env
+__pycache__/
+*.py[oc]
+.venv/
+venv/
+.python-version
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+
+# Generated outputs
+output/
