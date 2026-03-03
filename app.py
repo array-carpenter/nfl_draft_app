@@ -81,7 +81,7 @@ if selected is not None:
             st.error(f"Error processing {player_name}: {e}")
             st.stop()
 
-    st.image(png_bytes, use_container_width=True)
+    st.image(png_bytes, width="stretch")
 
     st.download_button(
         label="Download Comparison Card (PNG)",
