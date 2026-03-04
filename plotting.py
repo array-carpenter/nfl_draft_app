@@ -73,9 +73,10 @@ class DraftComparisonPlotter:
         self.input_player = input_player
 
     def _get_athlete_id(self, player: str):
-        df_player = self.stats_df[self.stats_df["player"] == player]
+        # Check processed_df first (filtered/disambiguated), then fall back to stats_df
+        df_player = self.proc.processed_df[self.proc.processed_df["player"] == player]
         if df_player.empty:
-            df_player = self.proc.processed_df[self.proc.processed_df["player"] == player]
+            df_player = self.stats_df[self.stats_df["player"] == player]
         if df_player.empty or "athlete_id" not in df_player.columns:
             return None
         athlete_id = df_player["athlete_id"].iloc[0]
