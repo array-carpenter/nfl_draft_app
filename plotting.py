@@ -84,9 +84,10 @@ class DraftComparisonPlotter:
             return None
         return int(athlete_id)
 
-    def _fetch_headshot(self, player: str):
+    def _fetch_headshot(self, player: str, athlete_id=None):
         """Try college headshot, then NFL via proAthlete lookup, then ESPN search API fallback."""
-        athlete_id = self._get_athlete_id(player)
+        if athlete_id is None:
+            athlete_id = self._get_athlete_id(player)
         if athlete_id:
             # Try college-football CDN first (works for current/recent players)
             try:
@@ -148,7 +149,8 @@ class DraftComparisonPlotter:
         # Header images — same box, anchored to bottom so they align
         img_bottom, img_height, img_width = 0.76, 0.15, 0.15
 
-        player_image = self._fetch_headshot(self.input_player)
+        input_athlete_id = self.proc.comparison_athlete_ids[0] if self.proc.comparison_athlete_ids else None
+        player_image = self._fetch_headshot(self.input_player, athlete_id=input_athlete_id)
         if player_image:
             player_img_ax = fig.add_axes([0.01, img_bottom, img_width, img_height], frameon=False)
             player_img_ax.imshow(player_image)
