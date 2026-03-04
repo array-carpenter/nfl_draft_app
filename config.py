@@ -156,6 +156,7 @@ TEAM_COLORS = {
     "UMass": "#881C1C",
     "UNLV": "#BA0C2F",
     "USC": "#9D2235",
+    "Southern California": "#9D2235",
     "Utah": "#CC0000",
     "Utah State": "#041E42",
     "UTEP": "#041E42",
