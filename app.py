@@ -12,7 +12,7 @@ from config import FILTERED_STATS_PATH, COMBINE_STATS_PATH
 st.set_page_config(page_title="NFL Draft Comparison Cards", layout="wide")
 
 # Bump this any time data_processor / config / plotting logic changes to bust the cache.
-_CACHE_VERSION = 3
+_CACHE_VERSION = 4
 
 
 @st.cache_data
