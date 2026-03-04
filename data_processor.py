@@ -21,7 +21,7 @@ class DataProcessor:
         self.player_position = None
         self.non_round_metrics = ["Height (in)", "Hand Size (in)", "Arm Length (in)", "40 Yard", "3Cone", "Shuttle"]
 
-    def process(self, input_player: str, player_year="2025"):
+    def process(self, input_player: str, player_year="2025", athlete_id=None):
         combine_columns = [
             "Height (in)", "Weight (lbs)", "Hand Size (in)", "Arm Length (in)",
             "40 Yard", "10-Yard Split", "Bench Press", "Vert Leap (in)",
@@ -70,10 +70,18 @@ class DataProcessor:
             print("Error merging PFF data:", e)
 
         df = df.drop_duplicates(subset=["player", "year", "team", "athlete_id"])
+        # When athlete_id is provided, use it to disambiguate players with the same name
+        if athlete_id is not None:
+            # Remove any other players with the same name but different athlete_id
+            df = df[~((df["player"] == input_player) & (df["athlete_id"] != athlete_id))]
+
         if input_player not in df["player"].unique():
             # Player may only exist in combine data (e.g., OL with no production stats)
             full_combine = pd.read_csv(COMBINE_STATS_PATH)
-            player_combine = full_combine[full_combine["player"] == input_player]
+            if athlete_id is not None:
+                player_combine = full_combine[full_combine["athlete_id"] == athlete_id]
+            else:
+                player_combine = full_combine[full_combine["player"] == input_player]
             if player_combine.empty:
                 raise ValueError(f"Input player {input_player} not found in data.")
             pos_gp = player_combine["POS_GP"].iloc[0]
@@ -90,7 +98,14 @@ class DataProcessor:
                 peers.loc[missing_id, "athlete_id"] = [-1 * (i + 1) for i in range(missing_id.sum())]
             df = pd.concat([df, peers], ignore_index=True)
             df = df.drop_duplicates(subset=["player", "year", "athlete_id"], keep="first")
-        df_player_year = df[(df["player"] == input_player) & (df["year"] == player_year)]
+
+        # Find the target player's row
+        if athlete_id is not None:
+            df_player_year = df[df["athlete_id"] == athlete_id]
+            if df_player_year.empty:
+                df_player_year = df[(df["player"] == input_player) & (df["year"] == player_year)]
+        else:
+            df_player_year = df[(df["player"] == input_player) & (df["year"] == player_year)]
         if df_player_year.empty:
             fallback_year = df.loc[df["player"] == input_player, "year"].max()
             print(f"No data found for {input_player} in year={player_year}. Using fallback year={fallback_year} instead.")

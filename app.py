@@ -12,7 +12,7 @@ from config import FILTERED_STATS_PATH, COMBINE_STATS_PATH
 st.set_page_config(page_title="NFL Draft Comparison Cards", layout="wide")
 
 # Bump this any time data_processor / config / plotting logic changes to bust the cache.
-_CACHE_VERSION = 2
+_CACHE_VERSION = 3
 
 
 @st.cache_data
@@ -26,6 +26,7 @@ def load_combine_options():
             "label": label,
             "player": row["player"],
             "year": str(int(row["Year"])),
+            "athlete_id": int(row["athlete_id"]) if pd.notna(row["athlete_id"]) else None,
         })
     return options
 
@@ -36,17 +37,17 @@ def get_stats_df():
 
 
 @st.cache_data
-def run_processor(player_name, year, _v=_CACHE_VERSION):
+def run_processor(player_name, year, athlete_id=None, _v=_CACHE_VERSION):
     stats_df = get_stats_df()
     processor = DataProcessor(stats_df)
-    processor.process(player_name, player_year=year)
+    processor.process(player_name, player_year=year, athlete_id=athlete_id)
     return processor, stats_df
 
 
 @st.cache_data
-def render_card(player_name, year, _v=_CACHE_VERSION):
+def render_card(player_name, year, athlete_id=None, _v=_CACHE_VERSION):
     """Render the comparison card to a high-res PNG buffer."""
-    processor, stats_df = run_processor(player_name, year)
+    processor, stats_df = run_processor(player_name, year, athlete_id=athlete_id)
     plotter = DraftComparisonPlotter(processor, stats_df, player_name)
     fig = plotter.create_plot(save=False)
     buf = io.BytesIO()
@@ -73,10 +74,11 @@ selected = st.selectbox(
 if selected is not None:
     player_name = options[selected]["player"]
     year = options[selected]["year"]
+    athlete_id = options[selected]["athlete_id"]
 
     with st.spinner(f"Processing {player_name}..."):
         try:
-            png_bytes = render_card(player_name, year)
+            png_bytes = render_card(player_name, year, athlete_id=athlete_id)
         except Exception as e:
             st.error(f"Error processing {player_name}: {e}")
             st.stop()
