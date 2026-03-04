@@ -84,16 +84,29 @@ class DraftComparisonPlotter:
         return int(athlete_id)
 
     def _fetch_headshot(self, player: str):
-        """Try college headshot, then NFL with same ID, then ESPN search API fallback."""
+        """Try college headshot, then NFL via proAthlete lookup, then ESPN search API fallback."""
         athlete_id = self._get_athlete_id(player)
         if athlete_id:
-            for path in ("college-football", "nfl"):
-                try:
-                    url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/{path}/players/full/{athlete_id}.png?w=350&h=254"
+            # Try college-football CDN first (works for current/recent players)
+            try:
+                url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/college-football/players/full/{athlete_id}.png?w=350&h=254"
+                with urllib.request.urlopen(url) as resp:
+                    return Image.open(io.BytesIO(resp.read()))
+            except Exception:
+                pass
+            # Look up the NFL athlete ID via ESPN's college athlete API (proAthlete field)
+            try:
+                api_url = f"https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/athletes/{athlete_id}"
+                with urllib.request.urlopen(api_url) as resp:
+                    data = json.loads(resp.read())
+                pro_ref = data.get("proAthlete", {}).get("$ref", "")
+                if "/athletes/" in pro_ref:
+                    nfl_id = pro_ref.split("/athletes/")[1].split("?")[0]
+                    url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/{nfl_id}.png?w=350&h=254"
                     with urllib.request.urlopen(url) as resp:
                         return Image.open(io.BytesIO(resp.read()))
-                except Exception:
-                    continue
+            except Exception:
+                pass
         # Fallback: search ESPN NFL API for the player's NFL headshot ID
         try:
             query = urllib.request.quote(player)
