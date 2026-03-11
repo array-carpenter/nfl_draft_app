@@ -89,6 +89,7 @@ class DraftComparisonPlotter:
         if athlete_id is None:
             athlete_id = self._get_athlete_id(player)
         if athlete_id:
+            athlete_id = int(athlete_id)
             # Try college-football CDN first (works for current/recent players)
             try:
                 url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/college-football/players/full/{athlete_id}.png?w=350&h=254"
